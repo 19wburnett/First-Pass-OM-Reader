@@ -3,7 +3,7 @@ import pdf from 'pdf-parse'
 import OpenAI from 'openai'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
-import { ParsedOMData, DealData, UnderwritingAssumptions, IRRBreakdown, RentRollData } from '../../types'
+import { ParsedOMData, DealData, UnderwritingAssumptions, IRRBreakdown, RentRollData, UserAssumptions } from '../../types'
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -171,7 +171,7 @@ const DEFAULT_ASSUMPTIONS: UnderwritingAssumptions = {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { omFileUrl, rentRollFileUrl } = body
+    const { omFileUrl, rentRollFileUrl, userAssumptions } = body
 
     if (!omFileUrl) {
       return NextResponse.json(
@@ -217,8 +217,26 @@ export async function POST(request: NextRequest) {
       rentRollMonthlyRent: parsedData.rentRollData?.totalMonthlyRent
     })
     
+    // Merge user assumptions with defaults
+    const finalAssumptions: UnderwritingAssumptions = {
+      ...DEFAULT_ASSUMPTIONS,
+      ...(userAssumptions && {
+        marketCapRate: userAssumptions.defaultCapRate,
+        exitCapRate: userAssumptions.exitCapRate,
+        loanToValue: userAssumptions.loanToValue,
+        interestRate: userAssumptions.interestRate,
+        analysisTerm: userAssumptions.analysisTerm
+      })
+    }
+    
+    console.log('Using assumptions:', {
+      default: DEFAULT_ASSUMPTIONS,
+      user: userAssumptions,
+      final: finalAssumptions
+    })
+    
     // Perform underwriting calculations
-    const dealData = performUnderwritingCalculations(parsedData, DEFAULT_ASSUMPTIONS)
+    const dealData = performUnderwritingCalculations(parsedData, finalAssumptions)
 
     return NextResponse.json(dealData)
   } catch (error) {

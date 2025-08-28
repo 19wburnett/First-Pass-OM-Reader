@@ -92,3 +92,12 @@ export interface IRRBreakdown {
   totalReturnLevered: number
   annualCashOnCash: number
 }
+
+export interface UserAssumptions {
+  targetIRR: number // User's target IRR percentage (e.g., 0.15 for 15%)
+  defaultCapRate: number // User's default cap rate (e.g., 0.06 for 6%)
+  exitCapRate: number // User's exit cap rate (e.g., 0.065 for 6.5%)
+  loanToValue: number // User's preferred LTV (e.g., 0.65 for 65%)
+  interestRate: number // User's expected interest rate (e.g., 0.06 for 6%)
+  analysisTerm: number // User's preferred analysis term in years
+}

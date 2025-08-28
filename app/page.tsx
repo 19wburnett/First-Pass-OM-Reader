@@ -3,14 +3,14 @@
 import { useState } from 'react'
 import FileUpload from './components/FileUpload'
 import DealSummary from './components/DealSummary'
-import { DealData } from './types'
+import { DealData, UserAssumptions } from './types'
 
 export default function Home() {
   const [dealData, setDealData] = useState<DealData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleFileUpload = async (omFileUrl: string, rentRollFileUrl?: string) => {
+  const handleFileUpload = async (omFileUrl: string, rentRollFileUrl?: string, userAssumptions?: UserAssumptions) => {
     setIsLoading(true)
     setError(null)
     
@@ -22,7 +22,8 @@ export default function Home() {
         },
         body: JSON.stringify({
           omFileUrl,
-          rentRollFileUrl
+          rentRollFileUrl,
+          userAssumptions
         }),
       })
       

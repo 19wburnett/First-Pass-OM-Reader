@@ -2,9 +2,10 @@
 
 import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
+import { UserAssumptions } from '../types'
 
 interface FileUploadProps {
-  onFileUpload: (omFileUrl: string, rentRollFileUrl?: string) => void
+  onFileUpload: (omFileUrl: string, rentRollFileUrl?: string, userAssumptions?: UserAssumptions) => void
   isLoading: boolean
 }
 
@@ -17,6 +18,16 @@ export default function FileUpload({ onFileUpload, isLoading }: FileUploadProps)
   const [fileSizeWarning, setFileSizeWarning] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState<{ om: number; rentRoll: number }>({ om: 0, rentRoll: 0 })
   const [uploadError, setUploadError] = useState<string | null>(null)
+  
+  // User assumptions state
+  const [userAssumptions, setUserAssumptions] = useState<UserAssumptions>({
+    targetIRR: 0.15, // 15%
+    defaultCapRate: 0.06, // 6%
+    exitCapRate: 0.065, // 6.5%
+    loanToValue: 0.65, // 65%
+    interestRate: 0.06, // 6%
+    analysisTerm: 5 // 5 years
+  })
 
   const validateFileSize = (file: File): string | null => {
     if (file.size > MAX_FILE_SIZE) {
@@ -91,8 +102,8 @@ export default function FileUpload({ onFileUpload, isLoading }: FileUploadProps)
         setUploadProgress(prev => ({ ...prev, rentRoll: 100 }))
       }
 
-      // Call the parent handler with URLs
-      onFileUpload(omFileUrl, rentRollFileUrl)
+      // Call the parent handler with URLs and user assumptions
+      onFileUpload(omFileUrl, rentRollFileUrl, userAssumptions)
 
     } catch (error) {
       console.error('Upload error:', error)
@@ -144,6 +155,157 @@ export default function FileUpload({ onFileUpload, isLoading }: FileUploadProps)
         </p>
         <p className="text-sm text-gray-500 mt-1">
           Upload a rent roll below for more accurate data
+        </p>
+      </div>
+
+      {/* User Assumptions Section */}
+      <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+        <h4 className="text-lg font-medium text-gray-900 mb-4">Investment Assumptions</h4>
+        
+        {/* Assumptions Summary */}
+        <div className="mb-4 p-3 bg-white border border-gray-200 rounded-md">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+            <div className="text-center">
+              <div className="font-medium text-gray-900">
+                {userAssumptions.targetIRR * 100}%
+              </div>
+              <div className="text-xs text-gray-500">Target IRR</div>
+            </div>
+            <div className="text-center">
+              <div className="font-medium text-gray-900">
+                {userAssumptions.defaultCapRate * 100}%
+              </div>
+              <div className="text-xs text-gray-500">Cap Rate</div>
+            </div>
+            <div className="text-center">
+              <div className="font-medium text-gray-900">
+                {userAssumptions.loanToValue * 100}%
+              </div>
+              <div className="text-xs text-gray-500">LTV</div>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2 text-center">
+            These settings will be used for underwriting calculations
+          </p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Target IRR (%)
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              value={userAssumptions.targetIRR * 100}
+              onChange={(e) => setUserAssumptions(prev => ({
+                ...prev,
+                targetIRR: parseFloat(e.target.value) / 100
+              }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="15.0"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Default Cap Rate (%)
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="20"
+              value={userAssumptions.defaultCapRate * 100}
+              onChange={(e) => setUserAssumptions(prev => ({
+                ...prev,
+                defaultCapRate: parseFloat(e.target.value) / 100
+              }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="6.0"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Exit Cap Rate (%)
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="20"
+              value={userAssumptions.exitCapRate * 100}
+              onChange={(e) => setUserAssumptions(prev => ({
+                ...prev,
+                exitCapRate: parseFloat(e.target.value) / 100
+              }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="6.5"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Loan-to-Value (%)
+            </label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              max="100"
+              value={userAssumptions.loanToValue * 100}
+              onChange={(e) => setUserAssumptions(prev => ({
+                ...prev,
+                loanToValue: parseFloat(e.target.value) / 100
+              }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="65"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Interest Rate (%)
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="20"
+              value={userAssumptions.interestRate * 100}
+              onChange={(e) => setUserAssumptions(prev => ({
+                ...prev,
+                interestRate: parseFloat(e.target.value) / 100
+              }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="6.0"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Analysis Term (Years)
+            </label>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              max="20"
+              value={userAssumptions.analysisTerm}
+              onChange={(e) => setUserAssumptions(prev => ({
+                ...prev,
+                analysisTerm: parseInt(e.target.value)
+              }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="5"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 mt-2">
+          These assumptions will be used for underwriting calculations and IRR analysis.
         </p>
       </div>
 
@@ -223,47 +385,6 @@ export default function FileUpload({ onFileUpload, isLoading }: FileUploadProps)
           </div>
         </div>
       )}
-
-            {/* Rent Roll Upload Section */}
-            {/* <div className="text-center mb-6 mt-6">
-        <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-3">
-          <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-        </div>
-        <h4 className="text-lg font-medium text-gray-900 mb-2">
-          Rent Roll (Optional)
-        </h4>
-        <p className="text-gray-600 text-sm">
-          Upload an Excel/CSV rent roll for more accurate occupancy and rent data
-        </p>
-      </div>
-
-      {/* Rent Roll File Input */}
-      {/* <div className="mt-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Rent Roll File (Excel/CSV)
-        </label>
-        <div className="flex items-center space-x-3">
-          <input
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            onChange={handleRentRollSelect}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          />
-          {selectedRentRollFile && (
-            <button
-              onClick={() => setSelectedRentRollFile(null)}
-              className="text-red-600 hover:text-red-800 text-sm font-medium"
-            >
-              Remove
-            </button>
-          )}
-        </div>
-        <p className="text-xs text-gray-500 mt-1">
-          Upload Excel (.xlsx, .xls) or CSV files. This will provide more accurate occupancy and rent data.
-        </p>
-      </div> */}
 
       {selectedOMFile && (
         <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
