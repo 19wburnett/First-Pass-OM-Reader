@@ -4,18 +4,19 @@ import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 
 interface FileUploadProps {
-  onFileUpload: (file: File) => void
+  onFileUpload: (omFile: File, rentRollFile?: File) => void
   isLoading: boolean
 }
 
 export default function FileUpload({ onFileUpload, isLoading }: FileUploadProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedOMFile, setSelectedOMFile] = useState<File | null>(null)
+  const [selectedRentRollFile, setSelectedRentRollFile] = useState<File | null>(null)
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0]
       if (file.type === 'application/pdf') {
-        setSelectedFile(file)
+        setSelectedOMFile(file)
       }
     }
   }, [])
@@ -29,15 +30,15 @@ export default function FileUpload({ onFileUpload, isLoading }: FileUploadProps)
   })
 
   const handleUpload = () => {
-    if (selectedFile) {
-      onFileUpload(selectedFile)
+    if (selectedOMFile) {
+      onFileUpload(selectedOMFile, selectedRentRollFile || undefined)
     }
   }
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file && file.type === 'application/pdf') {
-      setSelectedFile(file)
+      setSelectedOMFile(file)
     }
   }
 
@@ -54,6 +55,9 @@ export default function FileUpload({ onFileUpload, isLoading }: FileUploadProps)
         </h3>
         <p className="text-gray-600">
           Drag and drop your PDF OM here, or click to browse
+        </p>
+        <p className="text-sm text-gray-500 mt-1">
+          Upload a rent roll below for more accurate data
         </p>
       </div>
 
@@ -83,16 +87,79 @@ export default function FileUpload({ onFileUpload, isLoading }: FileUploadProps)
         </div>
       </div>
 
-      {selectedFile && (
+            {/* Rent Roll Upload Section */}
+            <div className="text-center mb-6 mt-6">
+        <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-3">
+          <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+        </div>
+        <h4 className="text-lg font-medium text-gray-900 mb-2">
+          Rent Roll (Optional)
+        </h4>
+        <p className="text-gray-600 text-sm">
+          Upload an Excel/CSV rent roll for more accurate occupancy and rent data
+        </p>
+      </div>
+
+      {/* Rent Roll File Input */}
+      <div className="mt-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Rent Roll File (Excel/CSV)
+        </label>
+        <div className="flex items-center space-x-3">
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) {
+                setSelectedRentRollFile(file)
+              }
+            }}
+            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+          {selectedRentRollFile && (
+            <button
+              onClick={() => setSelectedRentRollFile(null)}
+              className="text-red-600 hover:text-red-800 text-sm font-medium"
+            >
+              Remove
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          Upload Excel (.xlsx, .xls) or CSV files. This will provide more accurate occupancy and rent data.
+        </p>
+      </div>
+
+      {selectedOMFile && (
         <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
           <div className="flex items-center">
             <svg className="h-5 w-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
             </svg>
             <span className="text-green-800 font-medium">
-              Selected: {selectedFile.name}
+              Selected OM: {selectedOMFile.name}
             </span>
           </div>
+          
+          {selectedRentRollFile && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center">
+                <svg className="h-5 w-5 text-blue-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-blue-800 font-medium">
+                  Rent Roll: {selectedRentRollFile.name}
+                </span>
+              </div>
+              <p className="text-sm text-blue-700 mt-1">
+                ✓ Will provide accurate occupancy and rent data
+              </p>
+            </div>
+          )}
+          
           <button
             onClick={handleUpload}
             disabled={isLoading}

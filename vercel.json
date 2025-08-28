@@ -1,10 +1,7 @@
 {
-  "functions": {
-    "app/api/parseOM/route.ts": {
-      "maxDuration": 60
-    }
-  },
-  "env": {
-    "OPENAI_API_KEY": "@openai_api_key"
-  }
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "devCommand": "npm run dev",
+  "outputDirectory": ".next"
 }

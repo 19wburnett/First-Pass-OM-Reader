@@ -1,6 +1,8 @@
 export interface DealData {
   propertyName: string
-  purchasePrice: number
+  whisperPrice?: number // Price mentioned in OM (if any)
+  purchasePrice: number // Calculated price using cap rate and NOI
+  priceDifference: number // Difference: whisperPrice - purchasePrice
   units: number
   occupancy: number
   avgRent: number
@@ -22,17 +24,42 @@ export interface DealData {
   vacancy: number
   expenseRatio: number
   irrBreakdown: IRRBreakdown[]
+  // Rent roll data (if provided)
+  rentRollData?: RentRollData
 }
 
 export interface ParsedOMData {
   propertyName: string
-  purchasePrice: number
+  whisperPrice?: number // Optional price mentioned in OM
   units: number
   occupancy: number
   avgRent: number
   expenses: number
   NOI: number
   marketCapRate: number
+  // Rent roll data (if provided)
+  rentRollData?: RentRollData
+}
+
+export interface RentRollData {
+  totalUnits: number
+  occupiedUnits: number
+  vacantUnits: number
+  totalMonthlyRent: number
+  averageMonthlyRent: number
+  occupancyRate: number
+  // Detailed unit breakdown
+  units: RentRollUnit[]
+}
+
+export interface RentRollUnit {
+  unitNumber: string
+  unitType: string // e.g., "1BR", "2BR", "Studio"
+  monthlyRent: number
+  status: 'occupied' | 'vacant' | 'reserved'
+  tenantName?: string
+  leaseStartDate?: string
+  leaseEndDate?: string
 }
 
 export interface UnderwritingAssumptions {
@@ -45,6 +72,7 @@ export interface UnderwritingAssumptions {
   rentGrowthRate: number
   expenseGrowthRate: number
   exitCapRate: number
+  analysisTerm: number // Number of years for IRR analysis
 }
 
 export interface IRRBreakdown {
@@ -62,4 +90,5 @@ export interface IRRBreakdown {
   exitEquity: number
   totalReturnUnlevered: number
   totalReturnLevered: number
+  annualCashOnCash: number
 }

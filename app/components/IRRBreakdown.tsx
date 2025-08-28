@@ -1,15 +1,14 @@
 'use client'
 
-import { IRRBreakdown as IRRBreakdownType } from '../types'
+import { IRRBreakdown as IRRBreakdownType, DealData } from '../types'
 
 interface IRRBreakdownProps {
   irrBreakdown: IRRBreakdownType[]
-  equity: number
-  leveredIRR: number
-  unleveredIRR: number
+  dealData: DealData
 }
 
-export default function IRRBreakdown({ irrBreakdown, equity, leveredIRR, unleveredIRR }: IRRBreakdownProps) {
+export default function IRRBreakdown({ irrBreakdown, dealData }: IRRBreakdownProps) {
+  const { equity, leveredIRR, unleveredIRR } = dealData
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -27,26 +26,22 @@ export default function IRRBreakdown({ irrBreakdown, equity, leveredIRR, unlever
      // Create CSV content with the new table structure
      const headers = [
        'Line Item',
-       'Year 0',
-       'Year 1', 
-       'Year 2',
-       'Year 3',
-       'Year 4',
-       'Year 5'
+       ...irrBreakdown.map(row => `Year ${row.year}`)
      ]
      
-           const lineItems = [
-        'Gross Income',
-        'OP Expenses',
-        'NOI',
-        'Purchase of Property',
-        'Sale of Property',
-        'Unlevered Cash Flow',
-        'Debt Service',
-        'Remaining Debt',
-        'Sale of Property (Net)',
-        'Levered Cash Flow'
-      ]
+                       const lineItems = [
+         'Gross Income',
+         'OP Expenses',
+         'NOI',
+         'Purchase of Property',
+         'Sale of Property',
+         'Unlevered Cash Flow',
+         'Debt Service',
+         'Remaining Debt',
+         'Sale of Property (Net)',
+         'Levered Cash Flow',
+         'Annual Cash on Cash'
+       ]
      
      const csvContent = [
        headers.join(','),
@@ -54,8 +49,8 @@ export default function IRRBreakdown({ irrBreakdown, equity, leveredIRR, unlever
          const row = [item]
          
          // Add data for each year based on the line item
-         for (let year = 0; year <= 5; year++) {
-           const yearData = irrBreakdown.find(r => r.year === year)
+         for (let yearIndex = 0; yearIndex < irrBreakdown.length; yearIndex++) {
+           const yearData = irrBreakdown[yearIndex]
            if (!yearData) {
              row.push('')
              continue
@@ -63,34 +58,41 @@ export default function IRRBreakdown({ irrBreakdown, equity, leveredIRR, unlever
            
            switch (index) {
              case 0: // Gross Income
-               row.push(year === 0 ? '-' : yearData.grossIncome.toFixed(2))
+               row.push(yearData.year === 0 ? '-' : yearData.grossIncome.toFixed(2))
                break
              case 1: // OP Expenses
-               row.push(year === 0 ? '-' : yearData.operatingExpenses.toFixed(2))
+               row.push(yearData.year === 0 ? '-' : yearData.operatingExpenses.toFixed(2))
                break
              case 2: // NOI
-               row.push(year === 0 ? '-' : yearData.NOI.toFixed(2))
+               row.push(yearData.year === 0 ? '-' : yearData.NOI.toFixed(2))
                break
              case 3: // Purchase of Property
-               row.push(year === 0 ? (-irrBreakdown[0].propertyValue).toFixed(2) : '-')
+               row.push(yearData.year === 0 ? (-irrBreakdown[0].propertyValue).toFixed(2) : '-')
                break
              case 4: // Sale of Property
-               row.push(year === 5 ? (yearData.propertyValue - yearData.remainingDebt).toFixed(2) : '-')
+               row.push(yearData.year === irrBreakdown[irrBreakdown.length - 1].year ? yearData.propertyValue.toFixed(2) : '-')
                break
              case 5: // Unlevered Cash Flow
-               row.push(year === 0 ? (-irrBreakdown[0].propertyValue).toFixed(2) : yearData.cashFlowBeforeDebt.toFixed(2))
+               row.push(yearData.year === 0 ? (-irrBreakdown[0].propertyValue).toFixed(2) : 
+                       yearData.year === irrBreakdown[irrBreakdown.length - 1].year ? (yearData.cashFlowBeforeDebt + yearData.propertyValue).toFixed(2) : 
+                       yearData.cashFlowBeforeDebt.toFixed(2))
                break
              case 6: // Debt Service
-               row.push(year === 0 ? '-' : yearData.debtService.toFixed(2))
+               row.push(yearData.year === 0 ? '-' : yearData.debtService.toFixed(2))
                break
              case 7: // Remaining Debt
                row.push(yearData.remainingDebt.toFixed(2))
                break
              case 8: // Sale of Property (Net)
-               row.push(year === 5 ? (yearData.propertyValue - yearData.remainingDebt).toFixed(2) : '-')
+               row.push(yearData.year === irrBreakdown[irrBreakdown.length - 1].year ? (yearData.propertyValue - yearData.remainingDebt).toFixed(2) : '-')
                break
              case 9: // Levered Cash Flow
-               row.push(year === 0 ? (-irrBreakdown[0].propertyValue + irrBreakdown[0].remainingDebt).toFixed(2) : yearData.cashFlowAfterDebt.toFixed(2))
+               row.push(yearData.year === 0 ? (-irrBreakdown[0].propertyValue + irrBreakdown[0].remainingDebt).toFixed(2) : 
+                       yearData.year === irrBreakdown[irrBreakdown.length - 1].year ? (yearData.cashFlowAfterDebt + (yearData.propertyValue - yearData.remainingDebt)).toFixed(2) : 
+                       yearData.cashFlowAfterDebt.toFixed(2))
+               break
+             case 10: // Annual Cash on Cash
+               row.push(yearData.year === 0 ? '-' : (yearData.annualCashOnCash * 100).toFixed(2) + '%')
                break
              default:
                row.push('')
@@ -111,19 +113,30 @@ export default function IRRBreakdown({ irrBreakdown, equity, leveredIRR, unlever
       '',
       '',
       `Initial Equity Investment,${(-equity).toFixed(2)}`,
-      `Final Year Exit Equity,${irrBreakdown[5]?.exitEquity.toFixed(2) || '0.00'}`,
-      `Total Operating Cash Flow (No Debt),${irrBreakdown[5]?.cumulativeCashFlowBeforeDebt.toFixed(2) || '0.00'}`,
-      `Total Operating Cash Flow (With Debt),${irrBreakdown[5]?.cumulativeCashFlowAfterDebt.toFixed(2) || '0.00'}`,
-      `Levered IRR,${(leveredIRR * 100).toFixed(2)}%`,
-      `Unlevered IRR,${(unleveredIRR * 100).toFixed(2)}%`,
-      '',
-      'Key Assumptions',
-      'Rent Growth: 3% annually',
-      'Expense Growth: 2% annually', 
-      'Market Cap Rate: 6%',
-      'Loan: 65% LTV, 6% interest',
-      '30-year amortization',
-      'Exit Cap Rate: 6.5%'
+      `Final Year Exit Equity,${irrBreakdown[irrBreakdown.length - 1]?.exitEquity.toFixed(2) || '0.00'}`,
+      `Total Operating Cash Flow (No Debt),${irrBreakdown[irrBreakdown.length - 1]?.cumulativeCashFlowBeforeDebt.toFixed(2) || '0.00'}`,
+      `Total Operating Cash Flow (With Debt),${irrBreakdown[irrBreakdown.length - 1]?.cumulativeCashFlowAfterDebt.toFixed(2) || '0.00'}`,
+             `Levered IRR,${(leveredIRR * 100).toFixed(2)}%`,
+       `Unlevered IRR,${(unleveredIRR * 100).toFixed(2)}%`,
+              `Average Cash on Cash,${(() => {
+          const annualReturns = irrBreakdown.filter(row => row.year > 0).map(row => row.annualCashOnCash)
+          const avgReturn = annualReturns.reduce((sum, ret) => sum + ret, 0) / annualReturns.length
+          return (avgReturn * 100).toFixed(2)
+        })()}%`,
+       '',
+       'Pricing Analysis',
+       `Whisper Price (OM),${dealData.whisperPrice ? dealData.whisperPrice.toFixed(2) : 'Not Specified'}`,
+       `Market Value (NOI ÷ Cap Rate),${dealData.purchasePrice.toFixed(2)}`,
+       `Price Difference,${dealData.priceDifference.toFixed(2)}`,
+       `Price Status,${dealData.priceDifference > 0 ? 'Above Market' : dealData.priceDifference < 0 ? 'Below Market' : 'At Market'}`,
+       '',
+       'Key Assumptions',
+       'Rent Growth: 3% annually',
+       'Expense Growth: 2% annually', 
+       'Market Cap Rate: 6%',
+       'Loan: 65% LTV, 6% interest',
+       '30-year amortization',
+       'Exit Cap Rate: 6.5%'
     ]
     
     const fullCsvContent = csvContent + '\n' + summaryRows.join('\n')
@@ -145,17 +158,8 @@ export default function IRRBreakdown({ irrBreakdown, equity, leveredIRR, unlever
               <div className="flex items-center justify-between mb-4">
           <div>
                     <h5 className="text-lg font-semibold text-gray-900">
-          📊 5-Year IRR Calculation Breakdown (Levered & Unlevered)
+          📊 {dealData.irrBreakdown.length - 1}-Year IRR Calculation Breakdown (Levered & Unlevered)
         </h5>
-        <p className="text-sm text-gray-600">
-          Step-by-step cash flow analysis showing both levered (with debt) and unlevered (no debt) IRR calculations
-        </p>
-                    <p className="text-xs text-gray-500">
-          <strong>Total Return</strong> = Cumulative Cash Flow + Exit Equity (this is NOT the IRR)
-        </p>
-        <p className="text-xs text-blue-600">
-          💡 Click "Export to Excel" to download a CSV file you can open in Excel to verify calculations
-        </p>
           </div>
           <button
             onClick={exportToExcel}
@@ -173,24 +177,11 @@ export default function IRRBreakdown({ irrBreakdown, equity, leveredIRR, unlever
                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                  Line Item
                </th>
-               <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                 Year 0
-               </th>
-               <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                 Year 1
-               </th>
-               <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                 Year 2
-               </th>
-               <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                 Year 3
-               </th>
-               <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                 Year 4
-               </th>
-               <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                 Year 5
-               </th>
+               {irrBreakdown.map((row) => (
+                 <th key={row.year} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                   Year {row.year}
+                 </th>
+               ))}
              </tr>
            </thead>
            <tbody className="bg-white divide-y divide-gray-200">
@@ -240,7 +231,7 @@ export default function IRRBreakdown({ irrBreakdown, equity, leveredIRR, unlever
                 </td>
                 {irrBreakdown.map((row) => (
                   <td key={row.year} className="px-3 py-2 whitespace-nowrap text-sm text-green-600 font-medium text-center">
-                    {row.year === 5 ? formatCurrency(row.propertyValue) : '-'}
+                    {row.year === irrBreakdown[irrBreakdown.length - 1].year ? formatCurrency(row.propertyValue) : '-'}
                   </td>
                 ))}
               </tr>
@@ -250,9 +241,11 @@ export default function IRRBreakdown({ irrBreakdown, equity, leveredIRR, unlever
                 </td>
                 {irrBreakdown.map((row) => (
                   <td key={row.year} className={`px-3 py-2 whitespace-nowrap text-sm font-bold text-center ${
-                    row.cashFlowBeforeDebt < 0 ? 'text-red-600' : 'text-green-600'
+                    row.year === 0 ? 'text-red-600' : 'text-green-600'
                   }`}>
-                    {row.year === 0 ? formatCurrency(-irrBreakdown[0].propertyValue) : formatCurrency(row.cashFlowBeforeDebt)}
+                    {row.year === 0 ? formatCurrency(-irrBreakdown[0].propertyValue) : 
+                     row.year === irrBreakdown[irrBreakdown.length - 1].year ? formatCurrency(row.cashFlowBeforeDebt + row.propertyValue) : 
+                     formatCurrency(row.cashFlowBeforeDebt)}
                   </td>
                 ))}
               </tr>
@@ -282,22 +275,36 @@ export default function IRRBreakdown({ irrBreakdown, equity, leveredIRR, unlever
                 </td>
                 {irrBreakdown.map((row) => (
                   <td key={row.year} className="px-3 py-2 whitespace-nowrap text-sm text-green-600 font-medium text-center">
-                    {row.year === 5 ? formatCurrency(row.propertyValue - row.remainingDebt) : '-'}
+                    {row.year === irrBreakdown[irrBreakdown.length - 1].year ? formatCurrency(row.propertyValue - row.remainingDebt) : '-'}
                   </td>
                 ))}
               </tr>
-              <tr className="bg-green-50 border-t-2 border-green-200">
-                <td className="px-3 py-2 whitespace-nowrap text-sm font-bold text-green-900">
-                  Levered Cash Flow
-                </td>
-                {irrBreakdown.map((row) => (
-                  <td key={row.year} className={`px-3 py-2 whitespace-nowrap text-sm font-bold text-center ${
-                    row.cashFlowAfterDebt < 0 ? 'text-red-600' : 'text-green-600'
-                  }`}>
-                    {row.year === 0 ? formatCurrency(-irrBreakdown[0].propertyValue + irrBreakdown[0].remainingDebt) : formatCurrency(row.cashFlowAfterDebt)}
-                  </td>
-                ))}
-              </tr>
+                             <tr className="bg-green-50 border-t-2 border-green-200">
+                 <td className="px-3 py-2 whitespace-nowrap text-sm font-bold text-green-900">
+                   Levered Cash Flow
+                 </td>
+                 {irrBreakdown.map((row) => (
+                   <td key={row.year} className={`px-3 py-2 whitespace-nowrap text-sm font-bold text-center ${
+                     row.year === 0 ? 'text-red-600' : 'text-green-600'
+                   }`}>
+                     {row.year === 0 ? formatCurrency(-irrBreakdown[0].propertyValue + irrBreakdown[0].remainingDebt) : 
+                      row.year === irrBreakdown[irrBreakdown.length - 1].year ? formatCurrency(row.cashFlowAfterDebt + (row.propertyValue - row.remainingDebt)) : 
+                      formatCurrency(row.cashFlowAfterDebt)}
+                   </td>
+                 ))}
+               </tr>
+               <tr className="bg-yellow-50 border-t-2 border-yellow-200">
+                 <td className="px-3 py-2 whitespace-nowrap text-sm font-bold text-yellow-900">
+                   Annual Cash on Cash
+                 </td>
+                 {irrBreakdown.map((row) => (
+                   <td key={row.year} className={`px-3 py-2 whitespace-nowrap text-sm font-bold text-center ${
+                     row.year === 0 ? 'text-gray-400' : 'text-yellow-700'
+                   }`}>
+                     {row.year === 0 ? '-' : `${(row.annualCashOnCash * 100).toFixed(1)}%`}
+                   </td>
+                 ))}
+               </tr>
            </tbody>
          </table>
        </div>
@@ -306,54 +313,41 @@ export default function IRRBreakdown({ irrBreakdown, equity, leveredIRR, unlever
       <div className="mt-6 p-4 bg-gray-50 rounded-lg">
         <h6 className="text-sm font-semibold text-gray-900 mb-3">Calculation Summary</h6>
         <p className="text-xs text-gray-600 mb-3">
-          Note: The 5-Year IRR is calculated using the proper IRR algorithm (same as Excel's IRR function), 
+          Note: The {irrBreakdown.length - 1}-Year IRR is calculated using the proper IRR algorithm (same as Excel's IRR function), 
           not by simply dividing total return by equity.
         </p>
-        <p className="text-xs text-blue-600 mb-3">
-          🔍 <strong>Excel Verification:</strong> In Excel, use =IRR() function on the cash flow columns:
-          <br />• <strong>Levered IRR:</strong> Year 0: -Equity, Years 1-4: Cash Flow (With Debt), Year 5: Cash Flow + Exit Equity
-          <br />• <strong>Unlevered IRR:</strong> Year 0: -Property Value, Years 1-4: Cash Flow (No Debt), Year 5: Cash Flow + Property Value
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div>
-            <span className="font-medium text-gray-600">Initial Equity Investment:</span>
-            <span className="ml-2 text-red-600 font-medium">
-              {formatCurrency(-equity)}
-            </span>
-          </div>
-          <div>
-            <span className="font-medium text-gray-600">Final Year Exit Equity:</span>
-            <span className="ml-2 text-green-600 font-medium">
-              {formatCurrency(irrBreakdown[5]?.exitEquity || 0)}
-            </span>
-          </div>
-          <div>
-            <span className="font-medium text-gray-600">Total Operating Cash Flow:</span>
-            <span className="ml-2 text-green-600 font-medium">
-              {formatCurrency(irrBreakdown[5]?.cumulativeCashFlowAfterDebt || 0)}
-            </span>
-          </div>
-                     <div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+           <div>
+             <span className="font-medium text-gray-600">Initial Equity Investment:</span>
+             <span className="ml-2 text-red-600 font-medium">
+               {formatCurrency(-equity)}
+             </span>
+           </div>
+           <div>
+             <span className="font-medium text-gray-600">Final Year Exit Equity:</span>
+             <span className="ml-2 text-green-600 font-medium">
+               {formatCurrency(irrBreakdown[5]?.exitEquity || 0)}
+             </span>
+           </div>
+           <div>
              <span className="font-medium text-gray-600">Levered IRR:</span>
              <span className="ml-2 text-blue-600 font-bold">
                {formatPercent(leveredIRR)}
              </span>
            </div>
-        </div>
+           <div>
+             <span className="font-medium text-gray-600">Average Cash on Cash:</span>
+             <span className="ml-2 text-yellow-600 font-bold">
+               {(() => {
+                 const annualReturns = irrBreakdown.filter(row => row.year > 0).map(row => row.annualCashOnCash)
+                 const avgReturn = annualReturns.reduce((sum, ret) => sum + ret, 0) / annualReturns.length
+                 return `${(avgReturn * 100).toFixed(1)}%`
+               })()}
+             </span>
+           </div>
+         </div>
       </div>
 
-      {/* Assumptions Used */}
-      <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-        <h6 className="text-sm font-semibold text-blue-900 mb-2">Key Assumptions Used</h6>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-blue-800">
-          <div>• Rent Growth: 3% annually</div>
-          <div>• Expense Growth: 2% annually</div>
-          <div>• Market Cap Rate: 6%</div>
-          <div>• Loan: 65% LTV, 6% interest</div>
-          <div>• 30-year amortization</div>
-          <div>• Exit Cap Rate: 6.5%</div>
-        </div>
-      </div>
     </div>
   )
 }
