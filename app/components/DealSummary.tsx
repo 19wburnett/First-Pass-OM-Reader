@@ -30,21 +30,32 @@ export default function DealSummary({ dealData }: DealSummaryProps) {
   const [rentRollOpen, setRentRollOpen] = useState(false)
   const [assumptionsOpen, setAssumptionsOpen] = useState(false)
 
-  const formatCurrency = (value: number) => {
+
+
+  const formatPercent = (value: number | null | undefined) => {
+    if (value === null || value === undefined || isNaN(value)) {
+      return 'N/A'
+    }
+    return `${(value * 100).toFixed(1)}%`
+  }
+
+  const formatRatio = (value: number | null | undefined) => {
+    if (value === null || value === undefined || isNaN(value)) {
+      return 'N/A'
+    }
+    return `${value.toFixed(2)}x`
+  }
+
+  const formatCurrency = (value: number | null | undefined) => {
+    if (value === null || value === undefined || isNaN(value)) {
+      return 'N/A'
+    }
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value)
-  }
-
-  const formatPercent = (value: number) => {
-    return `${(value * 100).toFixed(1)}%`
-  }
-
-  const formatRatio = (value: number) => {
-    return `${value.toFixed(2)}x`
   }
 
   const handleAssumptionsChange = async (newAssumptions: UnderwritingAssumptions) => {
@@ -126,7 +137,7 @@ export default function DealSummary({ dealData }: DealSummaryProps) {
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h4 className="text-xl font-bold text-gray-900">
-            📊 Deal Summary – {currentDealData.propertyName}
+            📊 Deal Summary – {currentDealData.propertyName || 'Unknown Property'}
           </h4>
           <div className={`px-3 py-1 rounded-full text-sm font-medium ${
             isGoodDeal === null 
@@ -146,7 +157,7 @@ export default function DealSummary({ dealData }: DealSummaryProps) {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
           <div>
-            <span className="font-medium">Units:</span> {currentDealData.units.toLocaleString()}
+            <span className="font-medium">Units:</span> {currentDealData.units ? currentDealData.units.toLocaleString() : 'N/A'}
           </div>
           <div>
             <span className="font-medium">Occupancy:</span> {formatPercent(currentDealData.occupancy)}
@@ -259,7 +270,7 @@ export default function DealSummary({ dealData }: DealSummaryProps) {
               {formatRatio(currentDealData.DSCR)}
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              {currentDealData.DSCR >= 1.25 ? 'Strong Coverage' : 'Below Target'}
+              {currentDealData.DSCR && currentDealData.DSCR >= 1.25 ? 'Strong Coverage' : 'Below Target'}
             </p>
           </div>
 
@@ -267,20 +278,24 @@ export default function DealSummary({ dealData }: DealSummaryProps) {
             <div className="metric-label">Avg Cash-on-Cash</div>
             <div className="metric-value text-primary-600">
               {(() => {
+                if (!currentDealData.irrBreakdown || currentDealData.irrBreakdown.length === 0) return 'N/A'
                 const annualReturns = currentDealData.irrBreakdown.filter(row => row.year > 0).map(row => row.annualCashOnCash)
+                if (annualReturns.length === 0) return 'N/A'
                 const avgReturn = annualReturns.reduce((sum, ret) => sum + ret, 0) / annualReturns.length
                 return formatPercent(avgReturn)
               })()}
             </div>
             <p className="text-xs text-gray-500 mt-1">
               {(() => {
+                if (!currentDealData.irrBreakdown || currentDealData.irrBreakdown.length === 0) return 'N/A'
                 const annualReturns = currentDealData.irrBreakdown.filter(row => row.year > 0).map(row => row.annualCashOnCash)
+                if (annualReturns.length === 0) return 'N/A'
                 const avgReturn = annualReturns.reduce((sum, ret) => sum + ret, 0) / annualReturns.length
                 return avgReturn >= 0.08 ? 'Good Return' : 'Below Target'
               })()}
             </p>
             <p className="text-xs text-blue-600 mt-1">
-              {currentDealData.irrBreakdown.length - 1}-year average return
+              {currentDealData.irrBreakdown && currentDealData.irrBreakdown.length > 0 ? `${currentDealData.irrBreakdown.length - 1}-year average return` : 'No IRR data'}
             </p>
           </div>
 
@@ -290,7 +305,7 @@ export default function DealSummary({ dealData }: DealSummaryProps) {
                {formatPercent(currentDealData.leveredIRR)}
              </div>
              <p className="text-xs text-gray-500 mt-1">
-               {currentDealData.leveredIRR >= 0.15 ? 'Strong IRR' : 'Below Target'}
+               {currentDealData.leveredIRR && currentDealData.leveredIRR >= 0.15 ? 'Strong IRR' : 'Below Target'}
              </p>
            </div>
          </div>
@@ -309,13 +324,13 @@ export default function DealSummary({ dealData }: DealSummaryProps) {
            <div className="text-center">
              <div className="metric-label">Leverage Impact</div>
              <div className={`metric-value ${
-               currentDealData.leveredIRR > currentDealData.unleveredIRR ? 'text-success-600' : 'text-warning-600'
+               currentDealData.leveredIRR && currentDealData.unleveredIRR && currentDealData.leveredIRR > currentDealData.unleveredIRR ? 'text-success-600' : 'text-warning-600'
              }`}>
-               {currentDealData.leveredIRR > currentDealData.unleveredIRR ? '+' : ''}
-               {formatPercent(currentDealData.leveredIRR - currentDealData.unleveredIRR)}
+               {currentDealData.leveredIRR && currentDealData.unleveredIRR && currentDealData.leveredIRR > currentDealData.unleveredIRR ? '+' : ''}
+               {currentDealData.leveredIRR && currentDealData.unleveredIRR ? formatPercent(currentDealData.leveredIRR - currentDealData.unleveredIRR) : 'N/A'}
              </div>
              <p className="text-xs text-gray-500 mt-1">
-               {currentDealData.leveredIRR > currentDealData.unleveredIRR ? 'Debt enhances returns' : 'Debt reduces returns'}
+               {currentDealData.leveredIRR && currentDealData.unleveredIRR && currentDealData.leveredIRR > currentDealData.unleveredIRR ? 'Debt enhances returns' : 'Debt reduces returns'}
              </p>
            </div>
         </div>
@@ -376,7 +391,7 @@ export default function DealSummary({ dealData }: DealSummaryProps) {
             <h5 className="text-lg font-semibold text-gray-900 flex items-center">
               📊 Rent Roll Analysis
               <span className="ml-2 text-sm text-gray-500 font-normal">
-                ({currentDealData.rentRollData.totalUnits} units, {formatCurrency(currentDealData.rentRollData.totalMonthlyRent)}/month)
+                ({currentDealData.rentRollData?.totalUnits || 'N/A'} units, {currentDealData.rentRollData?.totalMonthlyRent ? formatCurrency(currentDealData.rentRollData.totalMonthlyRent) : 'N/A'}/month)
               </span>
             </h5>
             <div className="flex items-center">

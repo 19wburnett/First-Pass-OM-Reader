@@ -10,25 +10,25 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleFileUpload = async (omFile: File, rentRollFile?: File) => {
+  const handleFileUpload = async (omFileUrl: string, rentRollFileUrl?: string) => {
     setIsLoading(true)
     setError(null)
     
     try {
-      const formData = new FormData()
-      formData.append('pdf', omFile)
-      
-      if (rentRollFile) {
-        formData.append('rentRoll', rentRollFile)
-      }
-      
       const response = await fetch('/api/parseOM', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          omFileUrl,
+          rentRollFileUrl
+        }),
       })
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
       
       const data = await response.json()

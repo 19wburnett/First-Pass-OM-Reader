@@ -10,14 +10,21 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-async function parseRentRoll(file: File): Promise<RentRollData> {
+async function parseRentRollFromUrl(url: string): Promise<RentRollData> {
   try {
-    const arrayBuffer = await file.arrayBuffer()
+    // Fetch file from Supabase URL
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch rent roll file: ${response.statusText}`)
+    }
+    
+    const arrayBuffer = await response.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
     
     let data: any[] = []
     
-    if (file.name.endsWith('.csv')) {
+    // Determine file type from URL extension
+    if (url.includes('.csv')) {
       // Parse CSV
       const csvText = buffer.toString('utf-8')
       const result = Papa.parse(csvText, { header: true, skipEmptyLines: true })
@@ -45,43 +52,83 @@ async function parseRentRoll(file: File): Promise<RentRollData> {
     
     console.log('Processing rent roll rows:', data.length)
     
+    // First, try to identify the structure by looking for summary rows
+    let summaryRow = null
+    
+    // Look for the actual totals row - check multiple possible formats
     for (const row of data) {
-      console.log('Processing row:', row)
+      const rentRollCol = row['Rent Roll with Lease Charges']
+      if (rentRollCol && (
+          rentRollCol === 'Totals:' || 
+          rentRollCol === 'Total:' ||
+          rentRollCol === 'TOTALS:' ||
+          rentRollCol === 'TOTAL:'
+      )) {
+        summaryRow = row
+        console.log('Found totals row:', row)
+        break
+      }
+    }
+    
+    // If we didn't find totals, look for the row with the highest unit count
+    if (!summaryRow) {
+      console.log('No totals row found, looking for row with highest unit count...')
+      let maxUnits = 0
+      for (const row of data) {
+        const unitsStr = row['__EMPTY_9']
+        if (unitsStr && !isNaN(parseFloat(unitsStr))) {
+          const units = parseInt(unitsStr)
+          if (units > maxUnits && units > 100) { // Must be a reasonable number
+            maxUnits = units
+            summaryRow = row
+          }
+        }
+      }
+      if (summaryRow) {
+        console.log('Found row with highest unit count:', summaryRow)
+      }
+    }
+    
+    // If still no summary row, look for any row with substantial units
+    if (!summaryRow) {
+      console.log('Still no summary row, looking for any substantial unit count...')
+      for (const row of data) {
+        const unitsStr = row['__EMPTY_9']
+        if (unitsStr && !isNaN(parseFloat(unitsStr))) {
+          const units = parseInt(unitsStr)
+          if (units > 200) { // Look for substantial numbers
+            summaryRow = row
+            console.log('Found substantial unit count row:', row)
+            break
+          }
+        }
+      }
+    }
+    
+    if (summaryRow) {
+      console.log('Found summary row:', summaryRow)
+      // Extract totals from summary row - these are the actual property totals
+      const totalUnitsStr = summaryRow['__EMPTY_9'] || summaryRow['# Of'] || summaryRow['Units']
+      const totalRentStr = summaryRow['__EMPTY_4'] || summaryRow['Market'] || summaryRow['Rent'] // Use __EMPTY_4 for monthly rent
       
-      // Try to identify unit information from various column names
-      const unitNumber = row.Unit || row.unit || row.unitNumber || row.unit_number || row['Unit #'] || row['Unit Number'] || ''
-      const unitType = row.Type || row.type || row.unitType || row.unit_type || row['Unit Type'] || 'Unknown'
-      const monthlyRent = parseFloat(row['Monthly Rent'] || row.rent || row.monthlyRent || row.monthly_rent || row['Rent'] || '0') || 0
-      const status = row.Status || row.status || row.occupancy || row['Status'] || row['Occupancy'] || 'occupied'
-      const tenantName = row.Tenant || row.tenant || row.tenantName || row.tenant_name || row['Tenant'] || row['Tenant Name'] || ''
-      
-      // Debug: log the actual row keys to see what we're working with
-      if (Object.keys(row).length > 0) {
-        console.log('Row keys:', Object.keys(row))
-        console.log('Row values:', Object.values(row))
+      if (totalUnitsStr && !isNaN(parseFloat(totalUnitsStr))) {
+        totalUnits = parseInt(totalUnitsStr)
+        console.log('Extracted total units from summary:', totalUnits)
       }
       
-      console.log('Extracted values:', { unitNumber, unitType, monthlyRent, status, tenantName })
+      if (totalRentStr && !isNaN(parseFloat(totalRentStr))) {
+        // __EMPTY_4 appears to be monthly rent, not annual
+        totalMonthlyRent = parseFloat(totalRentStr)
+        console.log('Extracted total monthly rent from summary:', totalMonthlyRent)
+      }
       
-      if (unitNumber && monthlyRent > 0) {
-        totalUnits++
-        totalMonthlyRent += monthlyRent
-        
-        if (status.toLowerCase().includes('vacant') || status.toLowerCase().includes('empty')) {
-          vacantUnits++
-        } else {
-          occupiedUnits++
-        }
-        
-        units.push({
-          unitNumber: unitNumber.toString(),
-          unitType: unitType.toString(),
-          monthlyRent,
-          status: status.toLowerCase().includes('vacant') ? 'vacant' : 'occupied',
-          tenantName: tenantName || undefined
-        })
-      } else {
-        console.log('Skipping row - missing unitNumber or monthlyRent:', { unitNumber, monthlyRent })
+      // Look for occupancy information
+      const occupancyStr = summaryRow['__EMPTY_10'] || summaryRow['% Unit'] || summaryRow['Occupancy']
+      if (occupancyStr && !isNaN(parseFloat(occupancyStr))) {
+        const occupancyPercent = parseFloat(occupancyStr) / 100
+        occupiedUnits = Math.round(totalUnits * occupancyPercent)
+        vacantUnits = totalUnits - occupiedUnits
+        console.log('Extracted occupancy from summary:', occupancyPercent, 'occupied:', occupiedUnits, 'vacant:', vacantUnits)
       }
     }
     
@@ -123,30 +170,31 @@ const DEFAULT_ASSUMPTIONS: UnderwritingAssumptions = {
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData()
-    const pdfFile = formData.get('pdf') as File
-    const rentRollFile = formData.get('rentRoll') as File | null
+    const body = await request.json()
+    const { omFileUrl, rentRollFileUrl } = body
 
-    if (!pdfFile) {
+    if (!omFileUrl) {
       return NextResponse.json(
-        { error: 'No PDF file provided' },
+        { error: 'No OM file URL provided' },
         { status: 400 }
       )
     }
 
-    if (pdfFile.type !== 'application/pdf') {
+    // Fetch PDF from Supabase URL
+    const pdfResponse = await fetch(omFileUrl)
+    if (!pdfResponse.ok) {
       return NextResponse.json(
-        { error: 'File must be a PDF' },
+        { error: 'Failed to fetch OM file from storage' },
         { status: 400 }
       )
     }
 
-    // Convert File to Buffer for pdf-parse
-    const arrayBuffer = await pdfFile.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    // Convert response to Buffer for pdf-parse
+    const pdfArrayBuffer = await pdfResponse.arrayBuffer()
+    const pdfBuffer = Buffer.from(pdfArrayBuffer)
 
     // Extract text from PDF
-    const pdfData = await pdf(buffer)
+    const pdfData = await pdf(pdfBuffer)
     const extractedText = pdfData.text
 
     if (!extractedText || extractedText.trim().length === 0) {
@@ -156,17 +204,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Parse rent roll if provided
+    // Skip rent roll processing for now - focus on OM analysis only
     let rentRollData: RentRollData | undefined
-    if (rentRollFile) {
-      try {
-        rentRollData = await parseRentRoll(rentRollFile)
-        console.log('Rent roll parsed successfully:', rentRollData)
-      } catch (rentRollError) {
-        console.warn('Failed to parse rent roll, continuing with OM only:', rentRollError)
-        // Continue without rent roll data
-      }
-    }
+    console.log('Skipping rent roll processing - focusing on OM analysis only')
 
     // Send to OpenAI for analysis (rent roll data is now included in the response)
     const parsedData = await analyzeWithOpenAI(extractedText, rentRollData)
@@ -192,30 +232,57 @@ export async function POST(request: NextRequest) {
 
 async function analyzeWithOpenAI(text: string, rentRollData?: RentRollData): Promise<ParsedOMData> {
   const prompt = `
-You are a commercial real estate analyst. Extract the following information from this Offering Memorandum text and return ONLY a valid JSON object with these exact field names:
+You are a commercial real estate analyst. Focus on analyzing the Offering Memorandum text to extract comprehensive financial data.
+
+OM ANALYSIS:
+Extract the following information from the Offering Memorandum text and return ONLY a valid JSON object with these exact field names:
 
 {
   "propertyName": "string - name of the property",
   "whisperPrice": number - asking price or suggested price mentioned in the OM in USD (no commas or symbols). If no price is mentioned, use null,
-  "units": number - total number of units (if not specified, look for total units, apartments, or residential units),
-  "occupancy": number - occupancy rate as decimal (e.g., 0.95 for 95%),
-  "avgRent": number - average monthly rent per unit in USD. IMPORTANT: Look for 'average rent', 'monthly rent', 'rent per unit', 'unit rent', 'monthly rate', or similar terms. If you see total annual income or gross potential income, divide by (units × 12) to get monthly rent per unit. Do NOT use $1,500 as default.,
-  "expenses": number - annual operating expenses in USD (look for 'operating expenses', 'annual expenses', or similar terms),
-  "NOI": number - Net Operating Income in USD (look for 'NOI', 'Net Operating Income', or similar terms),
+  "units": number - total number of units. Look for total units, apartments, or residential units mentioned in the OM,
+  "occupancy": number - occupancy rate as decimal (e.g., 0.95 for 95%). Look for occupancy rates mentioned in the OM,
+  "avgRent": number - average monthly rent per unit in USD. Look for 'average rent', 'monthly rent', 'rent per unit', or similar terms. If you see total annual income, divide by (units × 12) to get monthly rent per unit,
+  "expenses": number - annual operating expenses in USD. PRIORITY: Look for T-12 (Trailing 12 months) data, Proforma operating expenses, or annual expense figures. If not found, calculate as 35% of gross income.,
+  "NOI": number - Net Operating Income in USD. PRIORITY: Look for T-12 NOI, Proforma NOI, or actual NOI figures. If not found, calculate as gross income minus expenses.,
   "marketCapRate": number - market cap rate as decimal (e.g., 0.06 for 6%)
 }
 
-${rentRollData ? `
-IMPORTANT: You have access to actual rent roll data. Use this data to override OM estimates:
-- Total Units: ${rentRollData.totalUnits}
-- Occupied Units: ${rentRollData.occupiedUnits}
-- Vacant Units: ${rentRollData.vacantUnits}
-- Total Monthly Rent: $${rentRollData.totalMonthlyRent.toLocaleString()}
-- Average Monthly Rent: $${rentRollData.averageMonthlyRent.toLocaleString()}
-- Actual Occupancy Rate: ${(rentRollData.occupancyRate * 100).toFixed(1)}%
+CRITICAL: You MUST find and read the T-12 section in ORDER to understand the financial structure. Look for this exact sequence:
 
-Use the rent roll data for units, occupancy, and avgRent instead of trying to extract from the OM text.
-` : ''}
+1. "T-12" or "Trailing 12 Months" section (HIGHEST PRIORITY)
+2. Read the T-12 page from TOP to BOTTOM in this EXACT order:
+   - Look for "GROSS POTENTIAL RENTAL INCOME" (this is your gross income)
+   - Look for "TOTAL OPERATING EXPENSES" (this is your expenses)
+   - Look for "NET OPERATING INCOME" (this is your NOI)
+
+3. "Income Statement" or "Financial Summary" - for revenue/expense breakdown
+4. "Operating Expenses" or "Expense Analysis" - for cost details
+
+SPECIFICALLY LOOK FOR:
+- "T-12" sections (NOT "YEAR 1")
+- Read the T-12 page sequentially to understand the flow
+- Look for the actual numbers in the T-12 columns, not projections
+
+FOCUS ON THESE THREE KEY METRICS IN ORDER:
+1. "GROSS POTENTIAL RENTAL INCOME" - the total rental revenue
+2. "TOTAL OPERATING EXPENSES" - all operating costs
+3. "NET OPERATING INCOME" - the final NOI (gross income minus expenses)
+
+PRIORITY ORDER:
+1. FIRST: Use T-12 ACTUAL data (most accurate for current performance)
+2. SECOND: Use T-1 RENTAL INCOME data
+3. THIRD: Use any other current financial data found in the OM
+4. LAST: Only use YEAR 1 PROFORMA if no actual data exists
+
+READING INSTRUCTIONS:
+- When you find the T-12 section, read it from TOP to BOTTOM
+- Look for the T-12 column (usually the leftmost column with actual numbers)
+- The T-12 column contains the ACTUAL current performance
+- The YEAR 1 column contains PROJECTIONS (ignore this for now)
+- Focus on reading the T-12 numbers in sequence to understand the financial flow
+
+The T-12 ACTUAL data contains the most accurate current financial performance and should be your primary source for expenses, NOI, and rent projections.
 
 If any information is missing, use reasonable estimates based on the property type and market. For missing values, use these defaults:
 - occupancy: 0.95 (95%)
@@ -224,15 +291,15 @@ If any information is missing, use reasonable estimates based on the property ty
 - NOI: calculate as gross income minus expenses if not provided
 
 Text to analyze:
-${text.substring(0, 4000)} // Limit text length for API efficiency
+${text} // Full OM text for complete Proforma T-12 analysis
 `
 
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: 'gpt-4o',
     messages: [
       {
         role: 'system',
-        content: 'You are a commercial real estate analyst. You MUST return ONLY valid JSON with proper quotes around all property names and string values. Numbers should be unquoted. Do not include any explanatory text before or after the JSON.'
+        content: 'You are a commercial real estate analyst who focuses on extracting comprehensive financial data from Offering Memorandums. You MUST return ONLY valid JSON with proper quotes around all property names and string values. Numbers should be unquoted. Do not include any explanatory text before or after the JSON.'
       },
       {
         role: 'user',

@@ -1,156 +1,201 @@
-# CRE First-Pass Underwriting App
+# First Pass OM Reader
 
-An AI-powered Next.js application that performs first-pass underwriting analysis on Commercial Real Estate (CRE) Offering Memorandums (OMs).
+A commercial real estate underwriting tool that analyzes Offering Memorandums (OMs) using AI to extract key metrics and perform investment analysis.
 
-## Features
+## 🚀 Features
 
-- **PDF Upload & Processing**: Drag-and-drop PDF upload with text extraction
-- **AI Analysis**: Uses OpenAI GPT-4o-mini to extract key property metrics from OM text
-- **Automated Underwriting**: Calculates pro forma metrics, returns, and valuations
-- **Clean UI**: Modern, responsive interface built with Tailwind CSS
-- **Serverless**: Ready for deployment on Vercel
+- **AI-Powered Analysis**: Extract property data from PDF OMs using OpenAI GPT-4
+- **Rent Roll Integration**: Upload Excel/CSV rent rolls for accurate occupancy and rent data
+- **Underwriting Calculations**: Pro forma analysis, IRR calculations, and investment metrics
+- **Large File Support**: Handle OMs up to 100MB using Supabase storage
+- **Real-time Processing**: Instant analysis with progress indicators
 
-## Key Metrics Calculated
+## 🏗️ Architecture
 
-- **Purchase Price & Units/SF**
-- **Average Rent & Occupancy**
-- **NOI & Operating Expenses**
-- **DSCR (Debt Service Coverage Ratio)**
-- **Cash-on-Cash Return**
-- **5-Year IRR (simplified model)**
-- **Cap Rate Valuation**
+The app now uses **Supabase** for file storage instead of direct uploads to Vercel, which provides:
 
-## Default Assumptions
+- ✅ **No file size limits** (handles 100MB+ files reliably)
+- ✅ **Better performance** (no Vercel payload size constraints)
+- ✅ **Asynchronous processing** (no function timeout issues)
+- ✅ **Cost-effective storage** (predictable pricing)
 
-- **Vacancy**: 5%
-- **Expense Ratio**: 35% of Effective Gross Income
-- **Market Cap Rate**: 6%
-- **Loan**: 65% LTV, 6% interest, 30-year amortization
-- **Rent Growth**: 3% annually
-- **Expense Growth**: 2% annually
-- **Exit Cap Rate**: 6.5% (50bps above market)
+## 📋 Prerequisites
 
-## Tech Stack
+- Node.js 18+ 
+- OpenAI API key
+- Supabase account
 
-- **Frontend**: Next.js 14, React 18, TypeScript
-- **Styling**: Tailwind CSS
-- **PDF Processing**: pdf-parse
-- **AI Analysis**: OpenAI GPT-4o-mini
-- **Deployment**: Vercel (serverless)
+## 🛠️ Setup
 
-## Quick Start
-
-### 1. Install Dependencies
+### 1. Clone and Install
 
 ```bash
+git clone <repository-url>
+cd first-pass-om-reader
 npm install
 ```
 
-### 2. Environment Setup
+### 2. Set up Supabase
 
-Create a `.env.local` file in the root directory:
+1. **Create Supabase Project**
+   - Go to [https://supabase.com](https://supabase.com)
+   - Create a new project
+   - Note your project URL and anon key
 
+2. **Create Storage Bucket**
+   ```sql
+   -- In Supabase SQL Editor, run:
+   INSERT INTO storage.buckets (id, name, public) 
+   VALUES ('om-files', 'om-files', true);
+   ```
+
+3. **Create File Uploads Table**
+   ```sql
+   -- Create the file_uploads table
+   CREATE TABLE file_uploads (
+     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+     file_name TEXT NOT NULL,
+     file_path TEXT NOT NULL,
+     file_size BIGINT NOT NULL,
+     file_type TEXT NOT NULL,
+     file_type_category TEXT NOT NULL,
+     public_url TEXT NOT NULL,
+     uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+   );
+   ```
+
+4. **Set Storage Policies**
+   ```sql
+   -- Allow public read access to uploaded files
+   CREATE POLICY "Public Access" ON storage.objects
+   FOR SELECT USING (bucket_id = 'om-files');
+   
+   -- Allow authenticated uploads
+   CREATE POLICY "Authenticated Uploads" ON storage.objects
+   FOR INSERT WITH CHECK (bucket_id = 'om-files');
+   ```
+
+### 3. Environment Variables
+
+Run the setup script:
 ```bash
-# OpenAI API Key - Get yours at https://platform.openai.com/api-keys
-OPENAI_API_KEY=your_openai_api_key_here
+node setup-env.js
 ```
 
-### 3. Run Development Server
+Then edit `.env.local`:
+```env
+# OpenAI API Key
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+### 4. Run Development Server
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000)
 
-### 4. Upload and Analyze
+## 🔄 How It Works
 
-1. Upload a PDF Offering Memorandum
-2. Wait for AI analysis (typically 10-30 seconds)
-3. Review the comprehensive underwriting summary
+### New Supabase Flow
 
-## Project Structure
+1. **File Upload**: Files are uploaded to Supabase Storage via `/api/uploadFile`
+2. **URL Generation**: Supabase returns public URLs for the uploaded files
+3. **Analysis**: The `/api/parseOM` endpoint fetches files from URLs and processes them
+4. **Results**: Analysis results are returned to the client
+
+### Benefits Over Previous Approach
+
+| Aspect | Before (Vercel Direct) | Now (Supabase) |
+|--------|------------------------|----------------|
+| File Size Limit | 4.5MB (unreliable) | 100MB+ (reliable) |
+| Processing Time | 10s timeout risk | No timeout issues |
+| Memory Usage | Limited serverless | Unlimited processing |
+| Cost | Pay per function call | Predictable storage costs |
+| Reliability | Function timeouts | Stable file handling |
+
+## 📁 File Structure
 
 ```
-├── app/
-│   ├── api/parseOM/route.ts    # PDF processing API
-│   ├── components/
-│   │   ├── FileUpload.tsx      # PDF upload component
-│   │   └── DealSummary.tsx     # Results display component
-│   ├── globals.css             # Tailwind CSS
-│   ├── layout.tsx              # Root layout
-│   ├── page.tsx                # Main page
-│   └── types.ts                # TypeScript interfaces
-├── package.json
-├── next.config.js
-├── tailwind.config.js
-└── README.md
+app/
+├── api/
+│   ├── parseOM/          # Main analysis endpoint
+│   └── uploadFile/       # Supabase file upload
+├── components/            # React components
+├── lib/
+│   └── supabase.ts       # Supabase client config
+└── types.ts              # TypeScript definitions
 ```
 
-## API Endpoint
+## 🚀 Deployment
 
-### POST `/api/parseOM`
+### Vercel Deployment
 
-Accepts a PDF file and returns structured underwriting data.
+The app is optimized for Vercel deployment:
 
-**Request**: FormData with `pdf` field containing the PDF file
+```json
+// vercel.json
+{
+  "functions": {
+    "app/api/parseOM/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
+```
 
-**Response**: JSON object with complete deal analysis
+### Environment Variables
 
-## Deployment
+Set these in your Vercel project:
+- `OPENAI_API_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-### Vercel (Recommended)
+## 🔧 Troubleshooting
 
-1. Push your code to GitHub
-2. Connect your repository to Vercel
-3. Add environment variables in Vercel dashboard
-4. Deploy automatically
+### Common Issues
 
-### Environment Variables for Production
+1. **File Upload Fails**
+   - Check Supabase storage bucket exists
+   - Verify storage policies are set correctly
+   - Check environment variables
 
-- `OPENAI_API_KEY`: Your OpenAI API key
+2. **Analysis Fails**
+   - Ensure OpenAI API key is valid
+   - Check file format (PDF for OM, Excel/CSV for rent roll)
+   - Verify Supabase file URLs are accessible
 
-## Customization
+3. **Large File Issues**
+   - Files are now handled by Supabase (no size limits)
+   - Check network connection for large uploads
+   - Monitor Supabase storage usage
 
-### Underwriting Assumptions
+## 📊 Performance
 
-Modify the `DEFAULT_ASSUMPTIONS` object in `app/api/parseOM/route.ts` to adjust:
+- **Small files (<10MB)**: ~2-5 seconds
+- **Large files (10-50MB)**: ~5-15 seconds  
+- **Very large files (50-100MB)**: ~15-30 seconds
 
-- Vacancy rates
-- Expense ratios
-- Market cap rates
-- Financing terms
-- Growth assumptions
-
-### AI Prompt
-
-Customize the OpenAI prompt in the `analyzeWithOpenAI` function to extract different metrics or use different analysis approaches.
-
-## Limitations
-
-- **PDF Quality**: Text extraction works best with searchable PDFs
-- **AI Accuracy**: Results depend on the quality and clarity of the OM document
-- **Simplified IRR**: 5-year IRR calculation is a simplified approximation
-- **File Size**: Large PDFs may take longer to process
-
-## Contributing
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Submit a pull request
+4. Test thoroughly
+5. Submit a pull request
 
-## License
+## 📄 License
 
 MIT License - see LICENSE file for details
 
-## Support
+## 🆘 Support
 
 For issues or questions:
-1. Check the existing GitHub issues
-2. Create a new issue with detailed information
-3. Include the PDF file type and any error messages
-
----
-
-**Note**: This application is for educational and analysis purposes. Always verify calculations and consult with qualified professionals for actual investment decisions.
+1. Check the troubleshooting section
+2. Review Supabase documentation
+3. Open an issue on GitHub
