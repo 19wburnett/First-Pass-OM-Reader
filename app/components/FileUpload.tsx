@@ -41,22 +41,51 @@ export default function FileUpload({ onFileUpload, isLoading }: FileUploadProps)
   }
 
   const uploadFileToSupabase = async (file: File, fileType: 'om' | 'rentRoll'): Promise<string> => {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('fileType', fileType)
+    try {
+      // Upload directly to Supabase Storage
+      const fileName = generateFileName(file.name)
+      const filePath = `${fileType}/${fileName}`
 
-    const response = await fetch('/api/uploadFile', {
-      method: 'POST',
-      body: formData,
-    })
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('om-files')
+        .upload(filePath, file, {
+          contentType: file.type,
+          cacheControl: '3600',
+          upsert: false
+        })
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error || 'Upload failed')
+      if (uploadError) {
+        throw new Error(uploadError.message)
+      }
+
+      // Get public URL for the uploaded file
+      const { data: urlData } = supabase.storage
+        .from('om-files')
+        .getPublicUrl(filePath)
+
+      // Store file metadata in database
+      const { error: dbError } = await supabase
+        .from('file_uploads')
+        .insert({
+          file_name: file.name,
+          file_path: filePath,
+          file_size: file.size,
+          file_type: file.type,
+          file_type_category: fileType,
+          public_url: urlData.publicUrl,
+          uploaded_at: new Date().toISOString()
+        })
+
+      if (dbError) {
+        console.error('Database insert error:', dbError)
+        // Don't fail the upload if database insert fails
+      }
+
+      return urlData.publicUrl
+    } catch (error) {
+      console.error('Supabase upload error:', error)
+      throw new Error('Failed to upload file to storage')
     }
-
-    const data = await response.json()
-    return data.publicUrl
   }
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
