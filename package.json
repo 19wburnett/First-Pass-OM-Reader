@@ -2,7 +2,7 @@
   "name": "cre-underwriting-app",
   "version": "0.1.0",
   "private": true,
-  "_comment": "Vercel rebuild fix - added comment to trigger clean deployment",
+  "_comment": "Vercel rebuild fix - updated comment to trigger clean deployment",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
