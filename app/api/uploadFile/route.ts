@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, generateFileName } from '../../lib/supabase'
 
-// Use Edge Runtime for larger payload support
-export const runtime = 'edge'
+// Use Node.js runtime for better file handling support
+export const runtime = 'nodejs'
+
+// Configure maximum payload size
+export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   console.log('Upload request received:', {
@@ -38,6 +41,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'No file provided' },
         { status: 400 }
+      )
+    }
+
+    // Check file size limit (10MB)
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    if (file.size > maxSize) {
+      return NextResponse.json(
+        { error: 'File size too large. Maximum size is 10MB.' },
+        { status: 413 }
       )
     }
 

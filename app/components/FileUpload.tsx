@@ -9,8 +9,8 @@ interface FileUploadProps {
   isLoading: boolean
 }
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB in bytes (Supabase can handle this)
-const WARNING_FILE_SIZE = 10 * 1024 * 1024 // 10MB warning threshold
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB in bytes (Vercel limit)
+const WARNING_FILE_SIZE = 5 * 1024 * 1024 // 5MB warning threshold
 
 export default function FileUpload({ onFileUpload, isLoading }: FileUploadProps) {
   const [selectedOMFile, setSelectedOMFile] = useState<File | null>(null)

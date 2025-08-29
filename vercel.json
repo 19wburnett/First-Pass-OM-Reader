@@ -2,6 +2,11 @@
   "buildCommand": "npm run build",
   "installCommand": "npm install",
   "framework": "nextjs",
+  "functions": {
+    "app/api/uploadFile/route.ts": {
+      "maxDuration": 60
+    }
+  },
   "builds": [
     {
       "src": "package.json",
