@@ -1,4 +1,5 @@
 'use client'
+// Vercel rebuild fix - added comment to trigger clean deployment
 
 import { useState } from 'react'
 import FileUpload from './components/FileUpload'
