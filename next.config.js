@@ -31,6 +31,12 @@ const nextConfig = {
       },
     ]
   },
+  serverRuntimeConfig: {
+    maxBodySize: '100mb',
+  },
+  publicRuntimeConfig: {
+    maxBodySize: '100mb',
+  },
 }
 
 module.exports = nextConfig

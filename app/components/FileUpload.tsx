@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { UserAssumptions } from '../types'
+import { supabase, generateFileName } from '../lib/supabase'
 
 interface FileUploadProps {
   onFileUpload: (omFileUrl: string, rentRollFileUrl?: string, userAssumptions?: UserAssumptions) => void
