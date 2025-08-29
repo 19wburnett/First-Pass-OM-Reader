@@ -38,6 +38,22 @@ export async function POST(request: NextRequest) {
 
     console.log('Environment variables validated successfully')
 
+    // Get the raw body first to check size
+    const contentLength = request.headers.get('content-length')
+    if (contentLength) {
+      const size = parseInt(contentLength)
+      console.log('Request content length:', size)
+      
+      // Check file size limit (10MB)
+      const maxSize = 10 * 1024 * 1024 // 10MB
+      if (size > maxSize) {
+        return NextResponse.json(
+          { error: 'File size too large. Maximum size is 10MB.' },
+          { status: 413 }
+        )
+      }
+    }
+
     const formData = await request.formData()
     const file = formData.get('file') as File
     const fileType = formData.get('fileType') as string // 'om' or 'rentRoll'
@@ -53,15 +69,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'No file provided' },
         { status: 400 }
-      )
-    }
-
-    // Check file size limit (10MB)
-    const maxSize = 10 * 1024 * 1024 // 10MB
-    if (file.size > maxSize) {
-      return NextResponse.json(
-        { error: 'File size too large. Maximum size is 10MB.' },
-        { status: 413 }
       )
     }
 
