@@ -1,3 +1,4 @@
+
 import * as pdfjsLib from 'pdfjs-dist'
 
 // Disable worker to avoid CORS issues - use main thread instead
@@ -147,14 +148,14 @@ function extractMetrics(text: string): Partial<ExtractedData> {
   })
   
   return {
-    propertyName: metrics.propertyName,
-    address: metrics.address,
-    totalUnits: metrics.totalUnits,
-    totalRent: metrics.totalRent,
-    occupancyRate: metrics.occupancyRate,
-    capRate: metrics.capRate,
-    noi: metrics.noi,
-    purchasePrice: metrics.purchasePrice,
+    propertyName: typeof metrics.propertyName === 'string' ? metrics.propertyName : undefined,
+    address: typeof metrics.address === 'string' ? metrics.address : undefined,
+    totalUnits: typeof metrics.totalUnits === 'number' ? metrics.totalUnits : undefined,
+    totalRent: typeof metrics.totalRent === 'number' ? metrics.totalRent : undefined,
+    occupancyRate: typeof metrics.occupancyRate === 'number' ? metrics.occupancyRate : undefined,
+    capRate: typeof metrics.capRate === 'number' ? metrics.capRate : undefined,
+    noi: typeof metrics.noi === 'number' ? metrics.noi : undefined,
+    purchasePrice: typeof metrics.purchasePrice === 'number' ? metrics.purchasePrice : undefined,
     metrics
   }
 }
