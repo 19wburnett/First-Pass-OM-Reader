@@ -6,11 +6,5 @@
     "app/api/uploadFile/route.ts": {
       "maxDuration": 60
     }
-  },
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next"
-    }
-  ]
+  }
 }
