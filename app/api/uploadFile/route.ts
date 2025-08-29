@@ -4,8 +4,20 @@ import { supabase, generateFileName } from '../../lib/supabase'
 // Use Node.js runtime for better file handling support
 export const runtime = 'nodejs'
 
-// Configure maximum payload size
+// Configure maximum payload size and duration
 export const maxDuration = 60
+
+// Handle OPTIONS request for CORS
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  })
+}
 
 export async function POST(request: NextRequest) {
   console.log('Upload request received:', {
@@ -138,7 +150,15 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Returning success response:', response)
-    return NextResponse.json(response)
+    
+    // Return response with CORS headers
+    return NextResponse.json(response, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+    })
 
   } catch (error) {
     console.error('File upload error:', error)
@@ -165,7 +185,14 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json(
       errorResponse,
-      { status: statusCode }
+      { 
+        status: statusCode,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+        },
+      }
     )
   }
 }
